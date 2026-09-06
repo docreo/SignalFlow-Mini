@@ -1,0 +1,11 @@
+{
+  "product": "SignalFlow Mini V1 RD2",
+  "status": "REBRANDED SOURCE / STATIC CONTRACT PASS; WINDOWS OWNER RUNTIME REMAINS AUTHORITY",
+  "source_package_sha256": "53dfbf4d0acaa29851754540735e9a4334e573650a758619ed977cbc359f8377",
+  "date": "2026-09-05",
+  "scope": "public rebrand of owner-supplied ReoFlow push-to-talk speech-to-text module",
+  "governed_icon_sha256": "9a0576f3c48198d25e310476a5bf409a5bb7ac833850927c61c35ec17b310639",
+  "runtime_model": "local whisper.cpp small.en",
+  "cloud_speech_runtime": false,
+  "larger_signal_flow_experimental_model": "SEPARATE PRIVATE BUILD-LEDGER WORKSTREAM / NOT INCLUDED"
+}

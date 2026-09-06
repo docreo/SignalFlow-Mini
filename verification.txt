@@ -1,0 +1,35 @@
+PASS - 01 required public package files
+PASS - 02 SignalFlow Mini version identity
+PASS - 03 public UI rebranded
+PASS - 04 executable rebranded
+PASS - 05 install root rebranded
+PASS - 06 F8 global hook preserved
+PASS - 07 microphone capture preserved
+PASS - 08 PCM 16k mono 16-bit preserved
+PASS - 09 500 ms pre-roll preserved
+PASS - 10 650 ms post-roll preserved
+PASS - 11 local whisper preserved
+PASS - 12 clipboard recovery preserved
+PASS - 13 guarded browser paste preserved
+PASS - 14 classic paste timeout preserved
+PASS - 15 focus guard preserved
+PASS - 16 legacy mutual exclusion preserved
+PASS - 17 quick tap guard preserved
+PASS - 18 temp WAV lifecycle preserved
+PASS - 19 no normal control UI
+PASS - 20 taskbar host retained
+PASS - 21 host noactivate
+PASS - 22 overlay not taskbar
+PASS - 23 overlay topmost
+PASS - 24 overlay click-through
+PASS - 25 listening overlay state
+PASS - 26 processing overlay state
+PASS - 27 overlay auto hide
+PASS - 28 pinned model hash
+PASS - 29 pinned whisper archive hash
+PASS - 30 atomic stage/rollback retained
+PASS - 31 Apache 2.0 present
+PASS - 32 lineage records exact owner source package
+PASS - 33 no embedded secret assignments
+
+RESULT: 33/33 checks passed
