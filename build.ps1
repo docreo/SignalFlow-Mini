@@ -20,11 +20,6 @@ if (!(Test-Path -LiteralPath $src)) {
   } finally { $input.Dispose() }
 }
 
-# Normalize the historical compatibility mutex into the public product identity before compilation.
-$sourceText = Get-Content -LiteralPath $src -Raw
-$sourceText = $sourceText.Replace('Local\ReoSpeak-RD3-OwnerTest','Local\SignalFlow-Mini-v1')
-Set-Content -LiteralPath $src -Value $sourceText -Encoding UTF8
-
 $exe = Join-Path $out 'SignalFlow-Mini.exe'
 if (Test-Path $exe) { Remove-Item -Force $exe }
 $refs = @('System.dll','System.Core.dll','System.Drawing.dll','System.Windows.Forms.dll')
