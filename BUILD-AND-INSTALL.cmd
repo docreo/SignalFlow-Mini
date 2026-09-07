@@ -1,6 +1,6 @@
 @echo off
 setlocal
-title SignalFlow Mini V1 RD2 Build and Install
+title SignalFlow Mini Build and Install
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1"
 if errorlevel 1 (
   echo.
@@ -9,5 +9,5 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-echo SignalFlow Mini V1 RD2 is ready for owner test.
+echo SignalFlow Mini installation complete.
 pause
