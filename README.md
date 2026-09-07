@@ -1,78 +1,97 @@
 # SignalFlow Mini
 
-**SignalFlow Mini** is the small, local push-to-talk speech-to-text member of the Signal Flow family.
+**SignalFlow Mini** is a free, open-source, local push-to-talk speech-to-text utility for Windows from Signalproof.
 
-Hold **F8**, speak, release **F8**, and SignalFlow Mini transcribes locally and returns the text to the application you were using. A compact bottom-center activity overlay shows when it is listening and when local transcription is running without taking focus from the target field.
+Hold **F8**, speak, release **F8**, and SignalFlow Mini transcribes your voice locally and returns the text to the application you were using. A compact visual indicator shows when the app is listening and when transcription is running without taking focus away from the text field.
+
+SignalFlow Mini is a giveaway. There is no purchase required to use the source code in this repository under the Apache License 2.0.
 
 ## What it does
 
-1. Hold **F8** to begin capture.
-2. The non-activating visual overlay appears and indicates that SignalFlow Mini is listening.
-3. Release **F8** to finish capture.
-4. The overlay changes to **Transcribing locally**.
-5. The transcript is placed on the clipboard and, when the original target is still safe, pasted back into that field.
-6. If safe automatic paste cannot be proven, the transcript remains on the clipboard instead of being typed into the wrong place.
+1. Click into the text field where you want the words to go.
+2. Hold **F8** to begin capture.
+3. SignalFlow Mini shows that it is listening.
+4. Speak normally.
+5. Release **F8**.
+6. The app transcribes locally with whisper.cpp and the Whisper `small.en` model.
+7. The transcript is placed on the clipboard first.
+8. When the original target can still be verified safely, SignalFlow Mini pastes the text back into that field.
+9. If safe automatic paste cannot be confirmed, the text stays on the clipboard instead of being typed into the wrong place.
 
 ## Local-first speech path
 
 ```text
 F8 hold
-  ↓
+  |
+  v
 Microphone capture
-  ↓
-local whisper.cpp + small.en
-  ↓
+  |
+  v
+Local whisper.cpp + small.en
+  |
+  v
 Transcript
-  ↓
+  |
+  v
 Clipboard
-  ↓
-Guarded paste into the originally captured target
+  |
+  v
+Guarded paste into the original target
 ```
 
-The current runtime does **not** send speech audio to a cloud speech service.
-
-## Listening visual aid
-
-SignalFlow Mini uses a small bottom-center animated activity overlay. It is intentionally an **activity visualization**, not a calibrated audio-level meter. The overlay is always-on-top, click-through, `NOACTIVATE`, and excluded from the taskbar so it can show listening/transcribing state without stealing the caret.
+Speech audio is processed locally by the current runtime. SignalFlow Mini does not send captured speech to a cloud speech API.
 
 ## Install on Windows
 
-1. Close any running ReoFlow/ReoSpeak legacy build or SignalFlow Mini instance.
-2. Clone or download this repository.
-3. Run `BUILD-AND-INSTALL.cmd`.
-4. Click into a text field.
-5. Hold **F8**, speak, and release.
+1. Clone or download this repository.
+2. Run `BUILD-AND-INSTALL.cmd`.
+3. Choose the folder where you want SignalFlow Mini installed.
+4. Allow the installer to download the pinned whisper.cpp runtime and Whisper `small.en` model.
+5. Click into any normal text field.
+6. Hold **F8**, speak, and release.
 
-`INSTALL-SIGNALFLOW-MINI.cmd` installs an already-built local candidate when appropriate.
+The installer verifies the SHA-256 hashes of the downloaded runtime and model before using them. It also uses a staged install and rollback path so an existing recognized SignalFlow Mini installation can be restored if replacement fails.
 
-## Preserved behavior from the ReoFlow prototype
+A Desktop shortcut is created for the selected installation.
 
-SignalFlow Mini is a rebrand/productization of the working **ReoFlow V1 RD2 Overlay Owner Test** prototype supplied by the owner on 2026-09-05. The speech and safe-paste design is intentionally preserved:
+### Scripted install
 
-- global hold-F8/release workflow
-- 500 ms rolling in-memory pre-roll
-- 650 ms post-roll
-- 16 kHz mono PCM16 microphone capture
-- local whisper.cpp `small.en` recognition
-- short-lived local temporary WAV deleted in `finally`
-- transcript placed on clipboard before paste attempt
-- target/focus verification before automatic paste
-- guarded Ctrl+V for Chromium/Electron fields
-- bounded `WM_PASTE` for classic Edit/RichEdit controls
-- shared legacy ReoSpeak/ReoFlow mutex retained for compatibility so two F8 engines do not run together
-- atomic installer staging/rollback
-- pinned dependency hashes
+For a non-interactive location, run:
 
-See `docs/ORIGIN-AND-LINEAGE.md` for the historical rename and the boundary between SignalFlow Mini and the larger Signal Flow system.
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -InstallPath "D:\Apps\SignalFlow-Mini"
+```
 
-## Relationship to Signal Flow
+## Why SignalFlow Mini exists
 
-SignalFlow Mini is **not** the full Signal Flow production system. It is the baby brother: the compact push-to-talk voice-input component. The larger Signal Flow architecture inside Signalproof Media Studio expands into recording, voice production, voice assets, performance direction, QA, and additional media workflows.
+The idea started as a small internal voice-input experiment called **ReoSpeak**. It evolved into **ReoFlow**, where the goal became more specific: hold a key, speak, see a clear listening state, transcribe locally, and return text without disrupting the application you are working in.
 
-An experimental next-stage model is being preserved separately in the private Signalproof Build Ledger and is not part of this repository.
+That working idea became **SignalFlow Mini**, the public, stripped-down version of the voice-input capability. The larger Signal Flow system being developed inside the Signalproof media stack goes much further, but this repository intentionally stays focused on one job: fast local talk-to-type.
+
+Read more in [`docs/ORIGIN-AND-LINEAGE.md`](docs/ORIGIN-AND-LINEAGE.md).
+
+## What is next
+
+SignalFlow Mini will receive another refinement update soon. The next public update is intended to improve polish, usability, and the everyday push-to-talk experience while keeping the product small and local-first.
+
+See [`ROADMAP.md`](ROADMAP.md) for the public direction.
+
+## About Signalproof
+
+Signalproof builds human-controlled AI systems and practical tools designed around clarity, proof, ownership, and human authority.
+
+SignalFlow Mini is one of our free public tools.
+
+If you want help identifying where AI fits into your work, what should stay human-controlled, and what to build next, book a **Clarity Core Session**:
+
+**https://signalproof.com/cccore**
+
+Learn more about Signalproof at **https://signalproof.com**.
 
 ## License
 
-SignalFlow Mini source is released under the **Apache License 2.0**. See `LICENSE` and `NOTICE`. Third-party runtime/model components retain their own licenses.
+SignalFlow Mini source code is released under the **Apache License 2.0**. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+
+Third-party components downloaded by the installer keep their own upstream licenses and terms. See [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 
 Copyright 2026 Doc Reo / Signalproof.
