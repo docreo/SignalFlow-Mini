@@ -1,0 +1,343 @@
+    // __MARKER__
+    // Presentation-only replacement for AudioOverlayForm.
+    // F8, microphone capture, local Whisper, clipboard/paste, target-focus, and timing logic remain outside this class.
+    internal sealed class AudioOverlayForm : Form
+    {
+        private const int WS_EX_TRANSPARENT = 0x00000020;
+        private const int WS_EX_TOOLWINDOW = 0x00000080;
+        private const int WS_EX_NOACTIVATE = 0x08000000;
+        private const int WM_NCHITTEST = 0x0084;
+        private const int HTTRANSPARENT = -1;
+
+        private readonly System.Windows.Forms.Timer _timer = new System.Windows.Forms.Timer();
+        private OverlayMode _mode = OverlayMode.Listening;
+        private int _tick;
+        private int _autoHideTick = -1;
+
+        public AudioOverlayForm()
+        {
+            Text = "__PRODUCT_NAME__ Activity";
+            FormBorderStyle = FormBorderStyle.None;
+            ShowInTaskbar = false;
+            TopMost = true;
+            StartPosition = FormStartPosition.Manual;
+            Width = 388;
+            Height = 76;
+            BackColor = System.Drawing.Color.FromArgb(34, 96, 178);
+            ForeColor = System.Drawing.Color.White;
+            Opacity = 0.985;
+            DoubleBuffered = true;
+
+            _timer.Interval = 40;
+            _timer.Tick += delegate
+            {
+                _tick++;
+                if (_autoHideTick >= 0 && _tick >= _autoHideTick)
+                {
+                    HideOverlay();
+                    return;
+                }
+                Invalidate();
+            };
+        }
+
+        protected override bool ShowWithoutActivation { get { return true; } }
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.ExStyle |= WS_EX_NOACTIVATE | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW;
+                return cp;
+            }
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            ApplyPillRegion();
+        }
+
+        protected override void OnSizeChanged(EventArgs e)
+        {
+            base.OnSizeChanged(e);
+            if (IsHandleCreated) ApplyPillRegion();
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_NCHITTEST)
+            {
+                m.Result = (IntPtr)HTTRANSPARENT;
+                return;
+            }
+            base.WndProc(ref m);
+        }
+
+        public void ShowListening(IntPtr targetWindow)
+        {
+            _mode = OverlayMode.Listening;
+            ShowState(targetWindow, -1);
+        }
+
+        public void ShowProcessing(IntPtr targetWindow)
+        {
+            _mode = OverlayMode.Processing;
+            ShowState(targetWindow, -1);
+        }
+
+        public void ShowOutcome(IntPtr targetWindow, bool pasted, bool error)
+        {
+            _mode = error ? OverlayMode.Error : (pasted ? OverlayMode.Pasted : OverlayMode.Copied);
+            ShowState(targetWindow, error ? 1200 : (pasted ? 420 : 950));
+        }
+
+        public void ShowNoSpeech(IntPtr targetWindow)
+        {
+            _mode = OverlayMode.NoSpeech;
+            ShowState(targetWindow, 700);
+        }
+
+        private void ShowState(IntPtr targetWindow, int autoHideMilliseconds)
+        {
+            PositionNearTarget(targetWindow);
+            _autoHideTick = autoHideMilliseconds > 0
+                ? _tick + Math.Max(1, autoHideMilliseconds / _timer.Interval)
+                : -1;
+            if (!Visible) Show();
+            _timer.Start();
+            Invalidate();
+        }
+
+        private void PositionNearTarget(IntPtr targetWindow)
+        {
+            Screen screen = targetWindow != IntPtr.Zero && Native.IsWindow(targetWindow)
+                ? Screen.FromHandle(targetWindow)
+                : Screen.PrimaryScreen;
+            System.Drawing.Rectangle work = screen.WorkingArea;
+            Left = work.Left + Math.Max(0, (work.Width - Width) / 2);
+            Top = work.Bottom - Height - 24;
+        }
+
+        public void HideOverlay()
+        {
+            _autoHideTick = -1;
+            _timer.Stop();
+            if (Visible) Hide();
+        }
+
+        private static System.Drawing.Drawing2D.GraphicsPath CreatePillPath(System.Drawing.RectangleF rect)
+        {
+            System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath();
+            float d = Math.Max(2f, rect.Height);
+            path.AddArc(rect.Left, rect.Top, d, d, 90f, 180f);
+            path.AddLine(rect.Left + (d / 2f), rect.Top, rect.Right - (d / 2f), rect.Top);
+            path.AddArc(rect.Right - d, rect.Top, d, d, 270f, 180f);
+            path.AddLine(rect.Right - (d / 2f), rect.Bottom, rect.Left + (d / 2f), rect.Bottom);
+            path.CloseFigure();
+            return path;
+        }
+
+        private void ApplyPillRegion()
+        {
+            if (Width <= 1 || Height <= 1) return;
+            using (System.Drawing.Drawing2D.GraphicsPath path = CreatePillPath(new System.Drawing.RectangleF(0f, 0f, Width, Height)))
+            {
+                System.Drawing.Region nextRegion = new System.Drawing.Region(path);
+                System.Drawing.Region previousRegion = Region;
+                Region = nextRegion;
+                if (previousRegion != null) previousRegion.Dispose();
+            }
+        }
+
+        private static void DrawRoundBar(
+            System.Drawing.Graphics graphics,
+            System.Drawing.Pen pen,
+            float x,
+            float centerY,
+            float height)
+        {
+            float half = Math.Max(1.0f, (height - pen.Width) / 2.0f);
+            graphics.DrawLine(pen, x, centerY - half, x, centerY + half);
+        }
+
+        private void GetPalette(
+            out System.Drawing.Color top,
+            out System.Drawing.Color bottom,
+            out System.Drawing.Color edge,
+            out System.Drawing.Color glow)
+        {
+            switch (_mode)
+            {
+                case OverlayMode.Listening:
+                    top = System.Drawing.Color.FromArgb(57, 143, 230);
+                    bottom = System.Drawing.Color.FromArgb(27, 91, 181);
+                    edge = System.Drawing.Color.FromArgb(122, 214, 242, 255);
+                    glow = System.Drawing.Color.FromArgb(92, 169, 220, 255);
+                    break;
+                case OverlayMode.Processing:
+                    top = System.Drawing.Color.FromArgb(92, 105, 122);
+                    bottom = System.Drawing.Color.FromArgb(49, 60, 73);
+                    edge = System.Drawing.Color.FromArgb(92, 220, 229, 240);
+                    glow = System.Drawing.Color.FromArgb(66, 192, 213, 240);
+                    break;
+                case OverlayMode.Pasted:
+                    top = System.Drawing.Color.FromArgb(62, 145, 120);
+                    bottom = System.Drawing.Color.FromArgb(35, 103, 84);
+                    edge = System.Drawing.Color.FromArgb(88, 222, 255, 241);
+                    glow = System.Drawing.Color.FromArgb(52, 188, 240, 218);
+                    break;
+                case OverlayMode.Copied:
+                    top = System.Drawing.Color.FromArgb(76, 119, 165);
+                    bottom = System.Drawing.Color.FromArgb(43, 78, 116);
+                    edge = System.Drawing.Color.FromArgb(86, 224, 241, 255);
+                    glow = System.Drawing.Color.FromArgb(52, 180, 218, 255);
+                    break;
+                case OverlayMode.NoSpeech:
+                    top = System.Drawing.Color.FromArgb(143, 121, 79);
+                    bottom = System.Drawing.Color.FromArgb(91, 74, 49);
+                    edge = System.Drawing.Color.FromArgb(86, 255, 239, 199);
+                    glow = System.Drawing.Color.FromArgb(42, 255, 226, 160);
+                    break;
+                default:
+                    top = System.Drawing.Color.FromArgb(150, 73, 82);
+                    bottom = System.Drawing.Color.FromArgb(100, 43, 52);
+                    edge = System.Drawing.Color.FromArgb(86, 255, 224, 226);
+                    glow = System.Drawing.Color.FromArgb(42, 255, 190, 198);
+                    break;
+            }
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            System.Drawing.Graphics graphics = e.Graphics;
+            graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+
+            System.Drawing.Color top;
+            System.Drawing.Color bottom;
+            System.Drawing.Color edge;
+            System.Drawing.Color glow;
+            GetPalette(out top, out bottom, out edge, out glow);
+
+            System.Drawing.RectangleF outerRect = new System.Drawing.RectangleF(1.5f, 1.5f, Width - 3f, Height - 3f);
+            using (System.Drawing.Drawing2D.GraphicsPath outerPath = CreatePillPath(outerRect))
+            using (System.Drawing.Drawing2D.LinearGradientBrush fill = new System.Drawing.Drawing2D.LinearGradientBrush(
+                outerRect,
+                top,
+                bottom,
+                System.Drawing.Drawing2D.LinearGradientMode.Vertical))
+            using (System.Drawing.Pen border = new System.Drawing.Pen(edge, 1.1f))
+            {
+                graphics.FillPath(fill, outerPath);
+                graphics.DrawPath(border, outerPath);
+            }
+
+            // Quiet upper-face lighting gives the control depth without old desktop chrome.
+            System.Drawing.RectangleF highlightRect = new System.Drawing.RectangleF(7f, 5f, Width - 14f, Math.Max(13f, Height * 0.42f));
+            using (System.Drawing.Drawing2D.GraphicsPath highlightPath = CreatePillPath(highlightRect))
+            using (System.Drawing.Drawing2D.LinearGradientBrush highlight = new System.Drawing.Drawing2D.LinearGradientBrush(
+                highlightRect,
+                System.Drawing.Color.FromArgb(40, 255, 255, 255),
+                System.Drawing.Color.FromArgb(0, 255, 255, 255),
+                System.Drawing.Drawing2D.LinearGradientMode.Vertical))
+            {
+                graphics.FillPath(highlight, highlightPath);
+            }
+
+            // Subtle moving inner glow behind the waveform.
+            float pulse = 0.5f + 0.5f * (float)Math.Sin(_tick * 0.14);
+            int glowAlpha = 18 + (int)(pulse * 24f);
+            using (System.Drawing.SolidBrush glowBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(glowAlpha, glow)))
+            {
+                graphics.FillEllipse(glowBrush, 16f, 9f, 160f, Height - 18f);
+            }
+
+            int barCount = 11;
+            float barWidth = 5f;
+            float gap = 10.5f;
+            float firstX = 31f;
+            float centerY = Height / 2f;
+
+            using (System.Drawing.Pen barPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(244, 249, 252, 255), barWidth))
+            {
+                barPen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
+                barPen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+
+                for (int i = 0; i < barCount; i++)
+                {
+                    double energy;
+                    if (_mode == OverlayMode.Listening)
+                    {
+                        double p1 = (_tick * 0.33) + (i * 0.82);
+                        double p2 = (_tick * 0.18) + (i * 1.39);
+                        energy = 0.22 + (0.58 * Math.Abs(Math.Sin(p1))) + (0.20 * Math.Abs(Math.Sin(p2)));
+                    }
+                    else if (_mode == OverlayMode.Processing)
+                    {
+                        double sweep = (_tick * 0.22) % (barCount + 4);
+                        double distance = Math.Abs(i - sweep);
+                        energy = 0.22 + (0.78 * Math.Exp(-(distance * distance) / 3.4));
+                    }
+                    else
+                    {
+                        energy = 0.34 + (0.14 * Math.Abs(Math.Sin((_tick * 0.18) + i)));
+                    }
+
+                    energy = Math.Max(0.0, Math.Min(1.0, energy));
+                    float height = 9f + (float)(30f * energy);
+                    DrawRoundBar(graphics, barPen, firstX + (i * gap), centerY, height);
+                }
+            }
+
+            float dotsLeft = firstX + (barCount * gap) + 8f;
+            for (int d = 0; d < 4; d++)
+            {
+                int alpha = 156 - (d * 28);
+                float dot = 4.0f - (d * 0.45f);
+                using (System.Drawing.SolidBrush dotBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(alpha, 255, 255, 255)))
+                {
+                    graphics.FillEllipse(dotBrush, dotsLeft + (d * 10f), centerY - (dot / 2f), dot, dot);
+                }
+            }
+
+            string label;
+            switch (_mode)
+            {
+                case OverlayMode.Listening: label = "Listening"; break;
+                case OverlayMode.Processing: label = "Transcribing locally"; break;
+                case OverlayMode.Pasted: label = "Pasted"; break;
+                case OverlayMode.Copied: label = "Copied to clipboard"; break;
+                case OverlayMode.NoSpeech: label = "No speech detected"; break;
+                default: label = "__PRODUCT_NAME__ error"; break;
+            }
+
+            System.Drawing.RectangleF textRect = new System.Drawing.RectangleF(207f, 0f, Width - 225f, Height);
+            using (System.Drawing.Font font = new System.Drawing.Font("Segoe UI", 10.5f, System.Drawing.FontStyle.Bold))
+            using (System.Drawing.SolidBrush textBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(250, 255, 255, 255)))
+            using (System.Drawing.StringFormat format = new System.Drawing.StringFormat())
+            {
+                format.Alignment = System.Drawing.StringAlignment.Near;
+                format.LineAlignment = System.Drawing.StringAlignment.Center;
+                format.Trimming = System.Drawing.StringTrimming.EllipsisCharacter;
+                format.FormatFlags = System.Drawing.StringFormatFlags.NoWrap;
+                graphics.DrawString(label, font, textBrush, textRect, format);
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _timer.Dispose();
+                if (Region != null)
+                {
+                    Region.Dispose();
+                    Region = null;
+                }
+            }
+            base.Dispose(disposing);
+        }
+    }

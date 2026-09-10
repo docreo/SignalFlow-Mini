@@ -10,27 +10,31 @@ New-Item -ItemType Directory -Force $out | Out-Null
 
 if (!(Test-Path -LiteralPath $src)) {
   if (!(Test-Path -LiteralPath $srcGz)) { throw 'Neither src\Program.cs nor src\Program.cs.gz exists.' }
-  $input = [System.IO.File]::OpenRead($srcGz)
+  $inputStream = [System.IO.File]::OpenRead($srcGz)
   try {
-    $gzip = New-Object System.IO.Compression.GzipStream($input, [System.IO.Compression.CompressionMode]::Decompress)
+    $gzipStream = New-Object System.IO.Compression.GzipStream($inputStream, [System.IO.Compression.CompressionMode]::Decompress)
     try {
-      $output = [System.IO.File]::Create($src)
-      try { $gzip.CopyTo($output) } finally { $output.Dispose() }
-    } finally { $gzip.Dispose() }
-  } finally { $input.Dispose() }
+      $outputStream = [System.IO.File]::Create($src)
+      try { $gzipStream.CopyTo($outputStream) } finally { $outputStream.Dispose() }
+    } finally { $gzipStream.Dispose() }
+  } finally { $inputStream.Dispose() }
 }
+
+$overlayApplicator = Join-Path $root 'tools\Apply-ModernVoiceOverlay.ps1'
+if (!(Test-Path -LiteralPath $overlayApplicator)) { throw 'Modern voice overlay applicator is missing.' }
+& $overlayApplicator -SourcePath $src -ProductName 'SignalFlow Mini' -Marker 'SIGNALFLOW-MINI-MODERN-VOICE-OVERLAY-V1-RD3'
 
 $exe = Join-Path $out 'SignalFlow-Mini.exe'
 if (Test-Path $exe) { Remove-Item -Force $exe }
 $refs = @('System.dll','System.Core.dll','System.Drawing.dll','System.Windows.Forms.dll')
-$addType = Get-Command Add-Type -ErrorAction Stop
+$addTypeCommand = Get-Command Add-Type -ErrorAction Stop
 $compile = @{
   Path = $src
   ReferencedAssemblies = $refs
   OutputAssembly = $exe
   OutputType = 'WindowsApplication'
 }
-if ($addType.Parameters.ContainsKey('CompilerOptions')) { $compile['CompilerOptions'] = '/optimize+' }
+if ($addTypeCommand.Parameters.ContainsKey('CompilerOptions')) { $compile['CompilerOptions'] = '/optimize+' }
 Add-Type @compile
 if (!(Test-Path $exe)) { throw 'SignalFlow-Mini.exe was not produced.' }
 $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()

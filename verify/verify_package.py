@@ -14,10 +14,10 @@ def program_source():
         return ''
     with gzip.open(gz,'rt',encoding='utf-8') as fh:
         return fh.read()
-required=['src/Program.cs.gz','build.ps1','install.ps1','uninstall.ps1','SignalFlow-Mini.ps1','INSTALL-SIGNALFLOW-MINI.cmd','BUILD-AND-INSTALL.cmd','README.md','VERSION','LICENSE','NOTICE','THIRD-PARTY-NOTICES.md','docs/ORIGIN-AND-LINEAGE.md','docs/TESTING.md','docs/SOURCE.md','ROADMAP.md','CHANGELOG.md','CONTRIBUTING.md','SECURITY.md','assets/Signalproof.ico']
-program=program_source(); installer=text('install.ps1'); build=text('build.ps1'); readme=text('README.md')
+required=['src/Program.cs.gz','build.ps1','install.ps1','uninstall.ps1','SignalFlow-Mini.ps1','INSTALL-SIGNALFLOW-MINI.cmd','BUILD-AND-INSTALL.cmd','README.md','VERSION','LICENSE','NOTICE','THIRD-PARTY-NOTICES.md','docs/ORIGIN-AND-LINEAGE.md','docs/TESTING.md','docs/SOURCE.md','ROADMAP.md','CHANGELOG.md','CONTRIBUTING.md','SECURITY.md','assets/Signalproof.ico','tools/ModernVoiceOverlay.cs.txt','tools/Apply-ModernVoiceOverlay.ps1']
+program=program_source(); installer=text('install.ps1'); build=text('build.ps1'); readme=text('README.md'); overlay=text('tools/ModernVoiceOverlay.cs.txt'); applicator=text('tools/Apply-ModernVoiceOverlay.ps1')
 check('01 required public package files', all((ROOT/p).is_file() for p in required))
-check('02 public version identity', text('VERSION').strip()=='SIGNALFLOW-MINI-V1-RD2-PUBLIC')
+check('02 public version identity', text('VERSION').strip()=='SIGNALFLOW-MINI-V1-RD3-PUBLIC')
 check('03 public UI rebranded', 'SignalFlow Mini - Ready' in program and 'ReoFlow - Ready' not in program)
 check('04 executable rebranded', 'SignalFlow-Mini.exe' in build and 'SignalFlow-Mini.exe' in installer)
 check('05 selectable install path', 'FolderBrowserDialog' in installer and '[string]$InstallPath' in installer)
@@ -45,11 +45,13 @@ check('26 Apache 2.0 present', 'Apache License' in text('LICENSE') and 'Version 
 check('27 ReoSpeak lineage documented', 'ReoSpeak' in text('docs/ORIGIN-AND-LINEAGE.md') and 'ReoFlow' in text('docs/ORIGIN-AND-LINEAGE.md'))
 check('28 giveaway language present', 'free, open-source' in readme and 'giveaway' in readme)
 check('29 Clarity Core CTA present', 'https://signalproof.com/cccore' in readme)
-check('30 upcoming update disclosed', 'refinement update soon' in readme.lower())
+check('30 RD3 modern oval overlay template', all(marker in overlay for marker in ['CreatePillPath','DrawRoundBar','LineCap.Round','barCount = 11','Listening','Transcribing locally']))
+check('31 RD3 build applies sanitized public overlay', "-ProductName 'SignalFlow Mini'" in build and 'SIGNALFLOW-MINI-MODERN-VOICE-OVERLAY-V1-RD3' in build)
+check('32 RD3 applicator protects speech path', all(marker in applicator for marker in ['VK_F8 = 0x77','WH_KEYBOARD_LL','MemoryStream _pcm','whisper-cli.exe','Clipboard.SetText(text)','_overlay.ShowListening(_targetWindow)','_overlay.ShowProcessing(_targetWindow)']))
 joined='\n'.join(text(p) for p in required if (ROOT/p).suffix.lower() in {'.ps1','.md','.cmd','.json','.txt'})
 secrets=re.findall(r'(?i)(api[_-]?key|secret|token)\s*[=:]\s*["\'][^"\']{8,}',joined)
-check('31 no embedded secret assignments', not secrets)
-check('32 no internal public-control files', all(not (ROOT/p).exists() for p in ['AGENTS.md','SOUL.md','LOCK.json','evidence.json','OWNER-TEST-CHECKLIST.md','verification.txt']))
+check('33 no embedded secret assignments', not secrets)
+check('34 no internal public-control files', all(not (ROOT/p).exists() for p in ['AGENTS.md','SOUL.md','LOCK.json','evidence.json','OWNER-TEST-CHECKLIST.md','verification.txt']))
 failed=[n for n,ok in checks if not ok]
 print(f'\nRESULT: {len(checks)-len(failed)}/{len(checks)} checks passed')
 if failed:
