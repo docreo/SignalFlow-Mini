@@ -2,7 +2,7 @@
 
 **SignalFlow Mini** is a free, open-source, local push-to-talk speech-to-text utility for Windows from Signalproof.
 
-Hold **F8**, speak, release **F8**, and SignalFlow Mini transcribes your voice locally and returns the text to the application you were using. A compact visual indicator shows when the app is listening and when transcription is running without taking focus away from the text field.
+Hold **F8**, speak, release **F8**, and SignalFlow Mini transcribes your voice locally and returns the text to the application you were using. A compact red-and-gold activity indicator shows **LISTENING** while F8 capture is active and **TRANSCRIBING** while local recognition is running, without taking focus away from the text field.
 
 SignalFlow Mini is a giveaway. There is no purchase required to use the source code in this repository under the Apache License 2.0.
 
@@ -70,9 +70,14 @@ That working idea became **SignalFlow Mini**, the public, stripped-down version 
 
 Read more in [`docs/ORIGIN-AND-LINEAGE.md`](docs/ORIGIN-AND-LINEAGE.md).
 
-## What is next
+## V1/RD3 refinement
 
-SignalFlow Mini will receive another refinement update soon. The next public update is intended to improve polish, usability, and the everyday push-to-talk experience while keeping the product small and local-first.
+The V1/RD3 public candidate keeps SignalFlow Mini intentionally small while improving the everyday push-to-talk experience:
+
+- the activity surface now uses the SignalFlow Mini red-and-gold moving swirl;
+- the only visible activity states are **LISTENING** and **TRANSCRIBING**;
+- the local whisper.cpp process drains stdout and stderr concurrently so redirected diagnostic output cannot deadlock transcription;
+- clipboard-first recovery and guarded paste behavior remain unchanged.
 
 See [`ROADMAP.md`](ROADMAP.md) for the public direction.
 

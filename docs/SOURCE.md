@@ -1,9 +1,16 @@
 # Source Layout
 
-The SignalFlow Mini application source is stored in `src/Program.cs.gz` in this repository. The build script expands it to `src/Program.cs` before compilation.
+The SignalFlow Mini application base source is stored in `src/Program.cs.gz`. The Windows build expands it to the generated `src/Program.cs`, applies the checked-in public V1/RD3 patches from `tools/`, and compiles the resulting exact source.
 
-This packaging keeps the repository buildable through the current Git transport while preserving the complete C# source. To inspect it manually, expand the gzip file with any standard gzip-compatible tool or run the repository build script on Windows.
+The V1/RD3 public patch set is intentionally narrow:
 
-The public source archive already uses the SignalFlow Mini product identity. ReoSpeak and ReoFlow are retained only in the public origin-and-lineage documentation to explain how the project evolved.
+- `tools/Apply-SignalFlowMiniOverlay.ps1` replaces only the activity presentation with the red-and-gold SignalFlow Mini `LISTENING` / `TRANSCRIBING` surface.
+- `tools/Apply-WhisperPipeDrainFix.ps1` changes only the redirected whisper.cpp stdout/stderr drain so both streams are consumed concurrently.
+
+F8 capture, microphone recording, local whisper.cpp invocation, transcript normalization, clipboard-first recovery, guarded paste, target verification, and the rest of the public application behavior remain in the public base source.
+
+`src/Program.cs` is generated during build and remains excluded from Git. The public verification script checks both the immutable base behavior and the checked-in patch contracts; after a build it also checks the exact generated source.
+
+ReoSpeak and ReoFlow remain only in the public origin-and-lineage documentation to explain how SignalFlow Mini evolved. They are not product identities in the V1/RD3 public runtime.
 
 SignalFlow Mini source is released under Apache License 2.0. Third-party runtime and model components retain their own upstream licenses and terms.
