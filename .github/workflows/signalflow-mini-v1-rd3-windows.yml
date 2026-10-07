@@ -1,0 +1,170 @@
+name: SignalFlow Mini V1 RD3 Windows Candidate
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tools/**'
+      - 'build.ps1'
+      - 'install.ps1'
+      - 'uninstall.ps1'
+      - 'verify/**'
+      - 'README.md'
+      - 'VERSION'
+      - 'CHANGELOG.md'
+      - 'ROADMAP.md'
+      - 'docs/**'
+      - '.github/workflows/signalflow-mini-v1-rd3-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Static public-package verification
+        shell: powershell
+        run: |
+          python .\verify\verify_package.py
+
+      - name: Directed redirected-pipe deadlock regression
+        shell: powershell
+        run: |
+          $child = Join-Path $env:RUNNER_TEMP 'signalflow-mini-pipe-child.ps1'
+          @'
+          [Console]::Out.WriteLine("TRANSCRIPT_OK")
+          for ($i = 0; $i -lt 18000; $i++) {
+              [Console]::Error.WriteLine(("whisper diagnostic line {0:D5} " -f $i) + ("x" * 90))
+          }
+          exit 0
+          '@ | Set-Content -LiteralPath $child -Encoding UTF8
+
+          $psi = New-Object System.Diagnostics.ProcessStartInfo
+          $psi.FileName = 'powershell.exe'
+          $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$child`""
+          $psi.UseShellExecute = $false
+          $psi.CreateNoWindow = $true
+          $psi.RedirectStandardOutput = $true
+          $psi.RedirectStandardError = $true
+          $p = [System.Diagnostics.Process]::Start($psi)
+          $stdoutTask = $p.StandardOutput.ReadToEndAsync()
+          $stderrTask = $p.StandardError.ReadToEndAsync()
+          if (-not $p.WaitForExit(15000)) {
+              try { $p.Kill() } catch {}
+              throw 'Concurrent redirected-pipe regression timed out.'
+          }
+          $stdout = $stdoutTask.GetAwaiter().GetResult()
+          $stderr = $stderrTask.GetAwaiter().GetResult()
+          if ($p.ExitCode -ne 0) { throw "Pipe child failed: $($p.ExitCode)" }
+          if ($stdout -notmatch 'TRANSCRIPT_OK') { throw 'stdout transcript sentinel missing.' }
+          if ($stderr.Length -lt 1000000) { throw 'stderr flood was too small to exercise pipe pressure.' }
+          Write-Host "Concurrent pipe drain PASS. stderr chars=$($stderr.Length)"
+
+      - name: Build exact Windows executable
+        shell: powershell
+        run: |
+          & .\build.ps1
+          if (!(Test-Path -LiteralPath '.\dist\SignalFlow-Mini.exe')) {
+              throw 'SignalFlow-Mini.exe was not produced.'
+          }
+
+      - name: Verify exact generated source and executable
+        shell: powershell
+        run: |
+          python .\verify\verify_package.py
+
+      - name: Stage distributable
+        shell: powershell
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'SignalFlow-Mini-V1-RD3-Windows'
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          foreach ($path in @(
+            'BUILD-AND-INSTALL.cmd',
+            'INSTALL-SIGNALFLOW-MINI.cmd',
+            'SignalFlow-Mini.ps1',
+            'install.ps1',
+            'uninstall.ps1',
+            'README.md',
+            'VERSION',
+            'LICENSE',
+            'NOTICE',
+            'THIRD-PARTY-NOTICES.md',
+            'SECURITY.md',
+            'CHANGELOG.md',
+            'ROADMAP.md'
+          )) {
+            Copy-Item -LiteralPath (Join-Path $PWD $path) -Destination (Join-Path $stage $path) -Force
+          }
+          New-Item -ItemType Directory -Force (Join-Path $stage 'dist') | Out-Null
+          Copy-Item -LiteralPath '.\dist\SignalFlow-Mini.exe' -Destination (Join-Path $stage 'dist\SignalFlow-Mini.exe') -Force
+          Copy-Item -LiteralPath '.\dist\SignalFlow-Mini.exe.sha256' -Destination (Join-Path $stage 'dist\SignalFlow-Mini.exe.sha256') -Force
+          New-Item -ItemType Directory -Force (Join-Path $stage 'assets') | Out-Null
+          Copy-Item -LiteralPath '.\assets\Signalproof.ico' -Destination (Join-Path $stage 'assets\Signalproof.ico') -Force
+
+          $manifest = @(
+            'Product=SignalFlow Mini',
+            'Version=SIGNALFLOW-MINI-V1-RD3-PUBLIC-CANDIDATE',
+            'Platform=Windows',
+            'VisibleStates=LISTENING,TRANSCRIBING',
+            'Overlay=RED_GOLD_SWIRL',
+            'WhisperPipeDrain=CONCURRENT',
+            'SpeechPath=local whisper.cpp small.en',
+            ('SignalFlowMiniExeSha256=' + (Get-FileHash -LiteralPath (Join-Path $stage 'dist\SignalFlow-Mini.exe') -Algorithm SHA256).Hash.ToLowerInvariant())
+          )
+          Set-Content -LiteralPath (Join-Path $stage 'BUILD-MANIFEST.txt') -Value $manifest -Encoding ASCII
+
+          $zip = Join-Path $env:RUNNER_TEMP 'SignalFlow-Mini-V1-RD3-Windows-PUBLIC-CANDIDATE.zip'
+          if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
+          Compress-Archive -LiteralPath (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
+          if (!(Test-Path -LiteralPath $zip)) { throw 'Windows public candidate ZIP was not produced.' }
+          Write-Host "Packaged $zip"
+
+      - name: Verify staged distributable identity
+        shell: powershell
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'SignalFlow-Mini-V1-RD3-Windows-PUBLIC-CANDIDATE.zip'
+          $verify = Join-Path $env:RUNNER_TEMP 'signalflow-mini-rd3-package-check'
+          if (Test-Path -LiteralPath $verify) { Remove-Item -LiteralPath $verify -Recurse -Force }
+          Expand-Archive -LiteralPath $zip -DestinationPath $verify -Force
+          foreach ($required in @(
+            'BUILD-AND-INSTALL.cmd',
+            'INSTALL-SIGNALFLOW-MINI.cmd',
+            'install.ps1',
+            'uninstall.ps1',
+            'README.md',
+            'VERSION',
+            'LICENSE',
+            'NOTICE',
+            'THIRD-PARTY-NOTICES.md',
+            'SECURITY.md',
+            'BUILD-MANIFEST.txt',
+            'dist\SignalFlow-Mini.exe',
+            'dist\SignalFlow-Mini.exe.sha256',
+            'assets\Signalproof.ico'
+          )) {
+            if (!(Test-Path -LiteralPath (Join-Path $verify $required))) {
+              throw "Missing packaged file: $required"
+            }
+          }
+          $version = (Get-Content -LiteralPath (Join-Path $verify 'VERSION') -Raw).Trim()
+          if ($version -ne 'SIGNALFLOW-MINI-V1-RD3-PUBLIC-CANDIDATE') { throw "Unexpected VERSION: $version" }
+          $manifest = Get-Content -LiteralPath (Join-Path $verify 'BUILD-MANIFEST.txt') -Raw
+          foreach ($required in @('VisibleStates=LISTENING,TRANSCRIBING','Overlay=RED_GOLD_SWIRL','WhisperPipeDrain=CONCURRENT')) {
+            if ($manifest.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) { throw "Manifest contract missing: $required" }
+          }
+          $expected = ((Get-Content -LiteralPath (Join-Path $verify 'dist\SignalFlow-Mini.exe.sha256') -Raw).Trim() -split '\s+')[0]
+          $actual = (Get-FileHash -LiteralPath (Join-Path $verify 'dist\SignalFlow-Mini.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected.ToLowerInvariant()) { throw 'Packaged executable SHA-256 verification failed.' }
+
+      - name: Upload Windows public candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: SignalFlow-Mini-V1-RD3-Windows-PUBLIC-CANDIDATE
+          path: ${{ runner.temp }}\SignalFlow-Mini-V1-RD3-Windows-PUBLIC-CANDIDATE.zip
+          if-no-files-found: error
+          retention-days: 30
