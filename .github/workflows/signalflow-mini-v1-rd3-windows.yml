@@ -87,6 +87,8 @@ jobs:
             'BUILD-AND-INSTALL.cmd',
             'INSTALL-SIGNALFLOW-MINI.cmd',
             'SignalFlow-Mini.ps1',
+            'build.ps1',
+            'build.ps1',
             'install.ps1',
             'uninstall.ps1',
             'README.md',
@@ -96,10 +98,22 @@ jobs:
             'THIRD-PARTY-NOTICES.md',
             'SECURITY.md',
             'CHANGELOG.md',
-            'ROADMAP.md'
+            'ROADMAP.md',
+            'CONTRIBUTING.md',
+            '.gitignore'
           )) {
             Copy-Item -LiteralPath (Join-Path $PWD $path) -Destination (Join-Path $stage $path) -Force
           }
+          foreach ($dir in @('src','tools','verify','docs')) {
+            New-Item -ItemType Directory -Force (Join-Path $stage $dir) | Out-Null
+          }
+          Copy-Item -LiteralPath '.\src\Program.cs.gz' -Destination (Join-Path $stage 'src\Program.cs.gz') -Force
+          Copy-Item -LiteralPath '.\tools\SignalFlowMiniOverlay.cs.txt' -Destination (Join-Path $stage 'tools\SignalFlowMiniOverlay.cs.txt') -Force
+          Copy-Item -LiteralPath '.\tools\Apply-SignalFlowMiniOverlay.ps1' -Destination (Join-Path $stage 'tools\Apply-SignalFlowMiniOverlay.ps1') -Force
+          Copy-Item -LiteralPath '.\tools\Apply-WhisperPipeDrainFix.ps1' -Destination (Join-Path $stage 'tools\Apply-WhisperPipeDrainFix.ps1') -Force
+          Copy-Item -LiteralPath '.\verify\verify_package.py' -Destination (Join-Path $stage 'verify\verify_package.py') -Force
+          Copy-Item -Path '.\docs\*' -Destination (Join-Path $stage 'docs') -Force
+
           New-Item -ItemType Directory -Force (Join-Path $stage 'dist') | Out-Null
           Copy-Item -LiteralPath '.\dist\SignalFlow-Mini.exe' -Destination (Join-Path $stage 'dist\SignalFlow-Mini.exe') -Force
           Copy-Item -LiteralPath '.\dist\SignalFlow-Mini.exe.sha256' -Destination (Join-Path $stage 'dist\SignalFlow-Mini.exe.sha256') -Force
@@ -120,7 +134,7 @@ jobs:
 
           $zip = Join-Path $env:RUNNER_TEMP 'SignalFlow-Mini-V1-RD3-Windows-PUBLIC-CANDIDATE.zip'
           if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
-          Compress-Archive -LiteralPath (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
           if (!(Test-Path -LiteralPath $zip)) { throw 'Windows public candidate ZIP was not produced.' }
           Write-Host "Packaged $zip"
 
@@ -145,7 +159,14 @@ jobs:
             'BUILD-MANIFEST.txt',
             'dist\SignalFlow-Mini.exe',
             'dist\SignalFlow-Mini.exe.sha256',
-            'assets\Signalproof.ico'
+            'assets\Signalproof.ico',
+            'src\Program.cs.gz',
+            'tools\SignalFlowMiniOverlay.cs.txt',
+            'tools\Apply-SignalFlowMiniOverlay.ps1',
+            'tools\Apply-WhisperPipeDrainFix.ps1',
+            'verify\verify_package.py',
+            'docs\SOURCE.md',
+            'docs\TESTING.md'
           )) {
             if (!(Test-Path -LiteralPath (Join-Path $verify $required))) {
               throw "Missing packaged file: $required"
