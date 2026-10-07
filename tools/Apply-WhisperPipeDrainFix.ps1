@@ -73,11 +73,25 @@ if ($sourceText.IndexOf($marker, [System.StringComparison]::Ordinal) -ge 0) {
     return
 }
 
-if ($sourceText.IndexOf($old, [System.StringComparison]::Ordinal) -lt 0) {
-    Stop-Patch 'expected sequential whisper stdout/stderr block was not found'
+# Normalize CRLF/LF only for exact matching. The generated C# source itself is
+# build-time material, so normalizing to LF is safe and deterministic.
+$crlf = [string]([char]13) + [string]([char]10)
+$lf = [string]([char]10)
+$normalizedSource = $sourceText.Replace($crlf, $lf)
+$normalizedOld = $old.Replace($crlf, $lf)
+$normalizedNew = $new.Replace($crlf, $lf)
+
+$matchCount = 0
+$scan = 0
+while (($scan = $normalizedSource.IndexOf($normalizedOld, $scan, [System.StringComparison]::Ordinal)) -ge 0) {
+    $matchCount++
+    $scan += $normalizedOld.Length
+}
+if ($matchCount -ne 1) {
+    Stop-Patch ('expected exactly one sequential whisper stdout/stderr block; found ' + $matchCount)
 }
 
-$patched = $sourceText.Replace($old, $new)
+$patched = $normalizedSource.Replace($normalizedOld, $normalizedNew)
 
 foreach ($required in @(
     $marker,
