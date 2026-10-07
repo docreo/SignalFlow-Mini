@@ -1,0 +1,281 @@
+    // SIGNALFLOW-MINI-RED-GOLD-OVERLAY-V1-RD3
+    // Presentation-only replacement for AudioOverlayForm.
+    // F8, microphone capture, local Whisper, clipboard/paste, target-focus, and timing logic remain outside this class.
+    internal sealed class AudioOverlayForm : Form
+    {
+        private const int WS_EX_TRANSPARENT = 0x00000020;
+        private const int WS_EX_TOOLWINDOW = 0x00000080;
+        private const int WS_EX_NOACTIVATE = 0x08000000;
+        private const int WM_NCHITTEST = 0x0084;
+        private const int HTTRANSPARENT = -1;
+
+        private readonly System.Windows.Forms.Timer _timer = new System.Windows.Forms.Timer();
+        private OverlayMode _mode = OverlayMode.Listening;
+        private int _tick;
+        private int _autoHideTick = -1;
+
+        public AudioOverlayForm()
+        {
+            Text = "SignalFlow Mini Activity";
+            FormBorderStyle = FormBorderStyle.None;
+            ShowInTaskbar = false;
+            TopMost = true;
+            StartPosition = FormStartPosition.Manual;
+            Width = 352;
+            Height = 70;
+            BackColor = System.Drawing.Color.FromArgb(8, 8, 9);
+            ForeColor = System.Drawing.Color.White;
+            Opacity = 0.985;
+            DoubleBuffered = true;
+
+            _timer.Interval = 40;
+            _timer.Tick += delegate
+            {
+                _tick++;
+                if (_autoHideTick >= 0 && _tick >= _autoHideTick)
+                {
+                    HideOverlay();
+                    return;
+                }
+                Invalidate();
+            };
+        }
+
+        protected override bool ShowWithoutActivation { get { return true; } }
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.ExStyle |= WS_EX_NOACTIVATE | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW;
+                return cp;
+            }
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            ApplyPillRegion();
+        }
+
+        protected override void OnSizeChanged(EventArgs e)
+        {
+            base.OnSizeChanged(e);
+            if (IsHandleCreated) ApplyPillRegion();
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_NCHITTEST)
+            {
+                m.Result = (IntPtr)HTTRANSPARENT;
+                return;
+            }
+            base.WndProc(ref m);
+        }
+
+        public void ShowListening(IntPtr targetWindow)
+        {
+            _mode = OverlayMode.Listening;
+            ShowState(targetWindow, -1);
+        }
+
+        public void ShowProcessing(IntPtr targetWindow)
+        {
+            _mode = OverlayMode.Processing;
+            ShowState(targetWindow, -1);
+        }
+
+        // SignalFlow Mini V1/RD3 intentionally exposes only LISTENING and TRANSCRIBING.
+        // Completion, clipboard, no-speech, and error outcomes remain behavior,
+        // but they do not add extra overlay states.
+        public void ShowOutcome(IntPtr targetWindow, bool pasted, bool error)
+        {
+            HideOverlay();
+        }
+
+        public void ShowNoSpeech(IntPtr targetWindow)
+        {
+            HideOverlay();
+        }
+
+        private void ShowState(IntPtr targetWindow, int autoHideMilliseconds)
+        {
+            PositionNearTarget(targetWindow);
+            _autoHideTick = autoHideMilliseconds > 0
+                ? _tick + Math.Max(1, autoHideMilliseconds / _timer.Interval)
+                : -1;
+            if (!Visible) Show();
+            _timer.Start();
+            Invalidate();
+        }
+
+        private void PositionNearTarget(IntPtr targetWindow)
+        {
+            Screen screen = targetWindow != IntPtr.Zero && Native.IsWindow(targetWindow)
+                ? Screen.FromHandle(targetWindow)
+                : Screen.PrimaryScreen;
+            System.Drawing.Rectangle work = screen.WorkingArea;
+            Left = work.Left + Math.Max(0, (work.Width - Width) / 2);
+            Top = work.Bottom - Height - 24;
+        }
+
+        public void HideOverlay()
+        {
+            _autoHideTick = -1;
+            _timer.Stop();
+            if (Visible) Hide();
+        }
+
+        private static System.Drawing.Drawing2D.GraphicsPath CreatePillPath(System.Drawing.RectangleF rect)
+        {
+            System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath();
+            float d = Math.Max(2f, rect.Height);
+            path.AddArc(rect.Left, rect.Top, d, d, 90f, 180f);
+            path.AddLine(rect.Left + (d / 2f), rect.Top, rect.Right - (d / 2f), rect.Top);
+            path.AddArc(rect.Right - d, rect.Top, d, d, 270f, 180f);
+            path.AddLine(rect.Right - (d / 2f), rect.Bottom, rect.Left + (d / 2f), rect.Bottom);
+            path.CloseFigure();
+            return path;
+        }
+
+        private void ApplyPillRegion()
+        {
+            if (Width <= 1 || Height <= 1) return;
+            using (System.Drawing.Drawing2D.GraphicsPath path = CreatePillPath(new System.Drawing.RectangleF(0f, 0f, Width, Height)))
+            {
+                System.Drawing.Region nextRegion = new System.Drawing.Region(path);
+                System.Drawing.Region previousRegion = Region;
+                Region = nextRegion;
+                if (previousRegion != null) previousRegion.Dispose();
+            }
+        }
+
+        private void DrawSwirl(System.Drawing.Graphics graphics)
+        {
+            float cx = 42f;
+            float cy = Height / 2f;
+            bool transcribing = _mode == OverlayMode.Processing;
+            float speed = transcribing ? 8.0f : 5.5f;
+            System.Drawing.Color red = System.Drawing.Color.FromArgb(224, 24, 42);
+            System.Drawing.Color deepRed = System.Drawing.Color.FromArgb(154, 8, 27);
+            System.Drawing.Color gold = System.Drawing.Color.FromArgb(255, 199, 74);
+            System.Drawing.Color warmGold = System.Drawing.Color.FromArgb(242, 157, 37);
+
+            float pulse = 0.5f + (0.5f * (float)Math.Sin(_tick * 0.18f));
+            using (System.Drawing.SolidBrush halo = new System.Drawing.SolidBrush(
+                System.Drawing.Color.FromArgb(20 + (int)(pulse * 20f), gold)))
+            {
+                graphics.FillEllipse(halo, cx - 25f, cy - 25f, 50f, 50f);
+            }
+
+            for (int ring = 0; ring < 4; ring++)
+            {
+                float radius = 10f + (ring * 5.8f);
+                float diameter = radius * 2f;
+                float direction = (ring % 2 == 0) ? 1f : -1f;
+                float start = ((_tick * speed * direction) + (ring * 61f)) % 360f;
+                float sweep = 122f + (ring * 17f);
+                System.Drawing.Color primary = (ring % 2 == 0) ? red : gold;
+                System.Drawing.Color secondary = (ring % 2 == 0) ? warmGold : deepRed;
+                System.Drawing.RectangleF arcRect = new System.Drawing.RectangleF(cx - radius, cy - radius, diameter, diameter);
+
+                using (System.Drawing.Pen glow = new System.Drawing.Pen(System.Drawing.Color.FromArgb(38, primary), 6.2f))
+                using (System.Drawing.Pen stroke = new System.Drawing.Pen(System.Drawing.Color.FromArgb(242, primary), 2.25f))
+                using (System.Drawing.Pen echo = new System.Drawing.Pen(System.Drawing.Color.FromArgb(185, secondary), 1.5f))
+                {
+                    glow.StartCap = System.Drawing.Drawing2D.LineCap.Round;
+                    glow.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+                    stroke.StartCap = System.Drawing.Drawing2D.LineCap.Round;
+                    stroke.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+                    echo.StartCap = System.Drawing.Drawing2D.LineCap.Round;
+                    echo.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+                    graphics.DrawArc(glow, arcRect, start, sweep);
+                    graphics.DrawArc(stroke, arcRect, start, sweep);
+                    graphics.DrawArc(echo, arcRect, start + 178f, Math.Max(48f, sweep * 0.42f));
+                }
+            }
+
+            float core = 7.5f + (pulse * 2.5f);
+            using (System.Drawing.SolidBrush coreBrush = new System.Drawing.SolidBrush(
+                transcribing ? gold : red))
+            using (System.Drawing.Pen coreRing = new System.Drawing.Pen(
+                transcribing ? red : gold, 1.7f))
+            {
+                graphics.FillEllipse(coreBrush, cx - (core / 2f), cy - (core / 2f), core, core);
+                graphics.DrawEllipse(coreRing, cx - 7.5f, cy - 7.5f, 15f, 15f);
+            }
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            System.Drawing.Graphics graphics = e.Graphics;
+            graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+
+            System.Drawing.RectangleF outerRect = new System.Drawing.RectangleF(1.5f, 1.5f, Width - 3f, Height - 3f);
+            using (System.Drawing.Drawing2D.GraphicsPath outerPath = CreatePillPath(outerRect))
+            using (System.Drawing.Drawing2D.LinearGradientBrush fill = new System.Drawing.Drawing2D.LinearGradientBrush(
+                outerRect,
+                System.Drawing.Color.FromArgb(24, 18, 16),
+                System.Drawing.Color.FromArgb(7, 7, 8),
+                System.Drawing.Drawing2D.LinearGradientMode.Vertical))
+            using (System.Drawing.Pen border = new System.Drawing.Pen(
+                System.Drawing.Color.FromArgb(120, 187, 43, 39), 1.0f))
+            {
+                graphics.FillPath(fill, outerPath);
+                graphics.DrawPath(border, outerPath);
+            }
+
+            using (System.Drawing.Pen goldEdge = new System.Drawing.Pen(
+                System.Drawing.Color.FromArgb(84, 255, 196, 68), 1.0f))
+            {
+                graphics.DrawLine(goldEdge, 78f, 13f, 78f, Height - 13f);
+            }
+
+            DrawSwirl(graphics);
+
+            string status = _mode == OverlayMode.Processing ? "TRANSCRIBING" : "LISTENING";
+            System.Drawing.Color statusColor = _mode == OverlayMode.Processing
+                ? System.Drawing.Color.FromArgb(255, 202, 82)
+                : System.Drawing.Color.FromArgb(248, 248, 246);
+
+            using (System.Drawing.Font brandFont = new System.Drawing.Font("Segoe UI", 7.5f, System.Drawing.FontStyle.Bold))
+            using (System.Drawing.Font statusFont = new System.Drawing.Font("Segoe UI", 12.0f, System.Drawing.FontStyle.Bold))
+            using (System.Drawing.SolidBrush brandBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(232, 44, 52)))
+            using (System.Drawing.SolidBrush statusBrush = new System.Drawing.SolidBrush(statusColor))
+            {
+                graphics.DrawString("SIGNALFLOW MINI", brandFont, brandBrush, 95f, 14f);
+                graphics.DrawString(status, statusFont, statusBrush, 94f, 29f);
+            }
+
+            float motion = 0.5f + (0.5f * (float)Math.Sin(_tick * 0.22f));
+            for (int i = 0; i < 3; i++)
+            {
+                int alpha = 75 + (int)(motion * 90f) - (i * 18);
+                if (alpha < 24) alpha = 24;
+                float dot = 3.5f - (i * 0.5f);
+                using (System.Drawing.SolidBrush dotBrush = new System.Drawing.SolidBrush(
+                    System.Drawing.Color.FromArgb(alpha, 255, 194, 66)))
+                {
+                    graphics.FillEllipse(dotBrush, 316f + (i * 8.5f), 33f - (dot / 2f), dot, dot);
+                }
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _timer.Dispose();
+                if (Region != null)
+                {
+                    Region.Dispose();
+                    Region = null;
+                }
+            }
+            base.Dispose(disposing);
+        }
+    }
