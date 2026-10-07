@@ -2,16 +2,15 @@
 
 SignalFlow Mini is intentionally small. The roadmap is about making the push-to-talk experience better without turning this repository into the full Signal Flow production system.
 
-## Next public update
+## Current refinement line
 
-A refinement update is planned soon. Priorities include:
+V1/RD3 focuses on:
 
-- improved everyday usability
-- clearer interaction feedback
-- installation and upgrade polish
-- stronger public packaging and documentation
+- clearer red-and-gold `LISTENING` and `TRANSCRIBING` feedback
 - continued local-first transcription
 - continued guarded text return and clipboard recovery
+- safer redirected-process handling for the local recognizer
+- installation, upgrade, packaging, and documentation polish
 
 ## Longer term
 
